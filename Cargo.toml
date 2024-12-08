@@ -6,10 +6,22 @@ edition = "2021"
 
 [dependencies]
 #the whole point
-bevy = { version = "0.15"} #default-features = false, features = ["bevy_core_pipeline", "bevy_pbr", "animation", "tonemapping_luts", "bevy_sprite", "bevy_scene", "webgl2"]}
+bevy = { version = "0.15", default-features = false, features = [
+"bevy_pbr", #3d rendering
+"bevy_sprite", #2d rendering
+"bevy_state", #state management
+"bevy_text",#if we need text
+"custom_cursor",#otherwise on web it crashes
+"default_font", # so that we don't have to import a font by ourselfes
+"tonemapping_luts",# 
+"webgl2",
+"png"]}
+#bevy-inspector-egui = "0.28.0"
+
 bevy_panorbit_camera = "0.21"
 bevy_stl = "0.15"
 bevy_web_asset = {git= "https://github.com/Usioumeo/bevy_web_asset.git", branch = "ureq"}
+
 [profile.dev]
 opt-level = 1
 
@@ -20,16 +32,9 @@ opt-level = 3
 # Enable more optimization in the release profile at the cost of compile time.
 [profile.release]
 codegen-units = 1
-lto = "thin"
+lto = "fat"
 opt-level = "z"
 strip = "debuginfo"
-
-#particular optimization for wasm
-[profile.wasm-release]
-inherits = "release"
-opt-level = "s"
-strip = "debuginfo"
-
 
 #this library features
 [features]
