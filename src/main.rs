@@ -1,6 +1,7 @@
 //! A simple 3D scene with light shining over a cube sitting on a plane.
 
 mod loading;
+mod bind;
 
 use bevy::{
     asset::AssetMetaCheck, diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin}, prelude::*
@@ -9,6 +10,7 @@ use bevy::{
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 use loading::{unload_current_visualization, LoadingData, VisualizzationComponents};
 use bevy_web_asset::WebAssetPlugin;
+
 #[derive(Default, Debug, Resource)]
 pub enum Resolution {
     #[default]
@@ -53,7 +55,7 @@ fn setup(
     asset_server: ResMut<AssetServer>,
     mut loading_data: ResMut<LoadingData>,
 ) {
-    let model = asset_server.load("http://localhost:8080/benchy.stl");
+    let model = asset_server.load(bind::get_url_fragment());
     loading_data.add_asset(&model);
     commands.spawn((
         Mesh3d(model),
