@@ -1,15 +1,19 @@
 //! A simple 3D scene with light shining over a cube sitting on a plane.
 
 mod loading;
+#[macro_use]
 mod bind;
+mod meshes_tree;
 
 use bevy::{
     asset::AssetMetaCheck, color::palettes::tailwind::{CYAN_300, YELLOW_300}, diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin}, prelude::*, render::mesh, window::PresentMode
 };
 //use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
+use bind::console_log;
 use loading::{unload_current_visualization, LoadingData, VisualizzationComponents};
 use bevy_web_asset::WebAssetPlugin;
+use meshes_tree::{MeshNode, MeshNodeSerde};
 
 #[derive(Default, Debug, Resource)]
 pub enum Resolution {
@@ -77,6 +81,15 @@ fn setup(
         .observe(update_material_on::<Pointer<Out>>(white_matl.clone()))
         .observe(update_material_on::<Pointer<Down>>(pressed_matl.clone()))
         .observe(update_material_on::<Pointer<Up>>(hover_matl.clone()));
+
+    console_log!("{:?}", MeshNode::from_json(r#"{
+        "url": "http://localhost:8080/mendocino.stl",
+        "children": [
+            {
+                "url": "http://localhost:8080/benchy.stl"
+            }
+        ]
+    }"#));
 
     // light
     let light = commands.spawn((
