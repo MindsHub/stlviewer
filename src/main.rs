@@ -5,20 +5,27 @@ mod loading;
 mod bind;
 mod meshes_tree;
 
+use std::sync::{Arc, Weak};
+
 use bevy::{
     asset::AssetMetaCheck, color::palettes::tailwind::{CYAN_300, YELLOW_300}, diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin}, prelude::*, render::mesh, window::PresentMode
 };
 //use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
-use bind::console_log;
 use loading::{unload_current_visualization, LoadingData, VisualizzationComponents};
 use bevy_web_asset::WebAssetPlugin;
-use meshes_tree::{MeshNode, MeshNodeSerde};
+use meshes_tree::MeshTreeNode;
 
 #[derive(Default, Debug, Resource)]
 pub enum Resolution {
     #[default]
     Cube,
+}
+
+#[derive(Resource, Component)]
+pub struct MeshTreeRes {
+    root: Arc<MeshTreeNode>,
+    current: Weak<MeshTreeNode>,
 }
 
 fn main() {
@@ -68,6 +75,18 @@ fn setup(
     let hover_matl = materials.add(Color::from(CYAN_300));
     let pressed_matl = materials.add(Color::from(YELLOW_300));
 
+    let mesh_tree_root = MeshTreeNode::from_json(r#"{
+        "url": "http://localhost:8080/mendocino.stl",
+        "children": [
+            {
+                "url": "http://localhost:8080/benchy.stl"
+            }
+        ]
+    }"#);
+    console_log!("Meshes: {mesh_tree_root:?}");
+    let initial_mesh_node = Arc::downgrade(&mesh_tree_root);
+    commands.insert_resource(MeshTreeRes { root: mesh_tree_root, current: initial_mesh_node });
+
     let model = asset_server.load(bind::get_url_fragment());
     loading_data.add_asset(&model);
     commands.spawn((
@@ -81,15 +100,6 @@ fn setup(
         .observe(update_material_on::<Pointer<Out>>(white_matl.clone()))
         .observe(update_material_on::<Pointer<Down>>(pressed_matl.clone()))
         .observe(update_material_on::<Pointer<Up>>(hover_matl.clone()));
-
-    console_log!("{:?}", MeshNode::from_json(r#"{
-        "url": "http://localhost:8080/mendocino.stl",
-        "children": [
-            {
-                "url": "http://localhost:8080/benchy.stl"
-            }
-        ]
-    }"#));
 
     // light
     let light = commands.spawn((
