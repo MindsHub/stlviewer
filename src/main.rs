@@ -4,7 +4,7 @@ mod loading;
 mod bind;
 
 use bevy::{
-    asset::AssetMetaCheck, diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin}, prelude::*
+    asset::AssetMetaCheck, diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin}, prelude::*, window::PresentMode
 };
 //use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -21,10 +21,11 @@ fn main() {
     //def.set(plugin)
     let window = WindowPlugin {
         primary_window: Some(Window {
+            present_mode: PresentMode::AutoNoVsync, // Reduces input lag.
+            fit_canvas_to_parent: true,
             title: "Cyber Bevy".to_string(),
             ..default()
         }),
-
         ..default()
     };
     let asset = AssetPlugin {
