@@ -2,6 +2,7 @@ use std::rc::{Rc, Weak};
 
 use serde::Deserialize;
 
+#[derive(Debug)]
 pub struct MeshNode {
     url: String,
     parent: Weak<MeshNode>,
@@ -16,9 +17,21 @@ pub struct MeshNodeSerde {
 }
 
 impl MeshNode {
-    pub fn from_json(data: &str) -> MeshNodeSerde {
+    fn from_serde(mns: MeshNodeSerde, parent: Weak<MeshNode>) -> Rc<MeshNode> {
+        Rc::new_cyclic(|current_node| {
+            MeshNode {
+                url: mns.url,
+                children: mns.children.into_iter()
+                    .map(|e| Self::from_serde(e, current_node.clone()))
+                    .collect(),
+                parent,
+            }
+        })
+    }
+
+    pub fn from_json(data: &str) -> Rc<MeshNode> {
         let root: MeshNodeSerde = serde_json::from_str(data).unwrap();
-        root
+        return Self::from_serde(root, Weak::new());
     }
 }
 
