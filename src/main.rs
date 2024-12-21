@@ -4,7 +4,7 @@ mod loading;
 mod bind;
 
 use bevy::{
-    asset::AssetMetaCheck, diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin}, prelude::*, window::PresentMode
+    asset::AssetMetaCheck, color::palettes::tailwind::{CYAN_300, YELLOW_300}, diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin}, prelude::*, render::mesh, window::PresentMode
 };
 //use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -34,15 +34,18 @@ fn main() {
     };
 
     App::new()
-        .add_plugins((WebAssetPlugin::default(), DefaultPlugins.set(asset).set(window)))
+        .add_plugins(WebAssetPlugin::default())
+        .add_plugins(DefaultPlugins.set(asset).set(window))
+        .add_plugins(MeshPickingPlugin)
         //.add_plugins(WorldInspectorPlugin::new())
         .init_resource::<Resolution>()
         .add_plugins(bevy_stl::StlPlugin)
         .add_systems(
             Update,
-            (unload_current_visualization, setup, ).chain().run_if(resource_changed::<Resolution>),
+            (unload_current_visualization, setup).chain().run_if(resource_changed::<Resolution>),
         )
-        .add_plugins((FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin::default()))
+        .add_plugins(FrameTimeDiagnosticsPlugin)
+        .add_plugins(LogDiagnosticsPlugin::default())
         .add_plugins(PanOrbitCameraPlugin)
         .add_plugins(loading::LoadingScreenPlugin)
         .run();
@@ -56,15 +59,24 @@ fn setup(
     asset_server: ResMut<AssetServer>,
     mut loading_data: ResMut<LoadingData>,
 ) {
+    // Set up the materials.
+    let white_matl = materials.add(Color::WHITE);
+    let hover_matl = materials.add(Color::from(CYAN_300));
+    let pressed_matl = materials.add(Color::from(YELLOW_300));
+
     let model = asset_server.load(bind::get_url_fragment());
     loading_data.add_asset(&model);
     commands.spawn((
         Mesh3d(model),
-        MeshMaterial3d(materials.add(Color::WHITE)),
+        MeshMaterial3d(white_matl.clone()),
         Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)).with_scale(Vec3::splat(0.05)),
         VisualizzationComponents,
         Visibility::Hidden,
-    ));
+    ))
+        .observe(update_material_on::<Pointer<Over>>(hover_matl.clone()))
+        .observe(update_material_on::<Pointer<Out>>(white_matl.clone()))
+        .observe(update_material_on::<Pointer<Down>>(pressed_matl.clone()))
+        .observe(update_material_on::<Pointer<Up>>(hover_matl.clone()));
 
     // light
     let light = commands.spawn((
@@ -92,3 +104,19 @@ fn setup(
         VisualizzationComponents,
     )).add_child(light);
 }
+
+
+/// Returns an observer that updates the entity's material to the one specified.
+fn update_material_on<E>(
+    new_material: Handle<StandardMaterial>,
+) -> impl Fn(Trigger<E>, Query<&mut MeshMaterial3d<StandardMaterial>>) {
+    // An observer closure that captures `new_material`. We do this to avoid needing to write four
+    // versions of this observer, each triggered by a different event and with a different hardcoded
+    // material. Instead, the event type is a generic, and the material is passed in.
+    move |trigger, mut query| {
+        if let Ok(mut material) = query.get_mut(trigger.entity()) {
+            material.0 = new_material.clone();
+        }
+    }
+}
+

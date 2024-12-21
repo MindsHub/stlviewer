@@ -7,15 +7,17 @@ edition = "2021"
 [dependencies]
 #the whole point
 bevy = { version = "0.15", default-features = false, features = [
-"bevy_pbr", #3d rendering
-"bevy_sprite", #2d rendering
-"bevy_state", #state management
-"bevy_text",#if we need text
-"custom_cursor",#otherwise on web it crashes
-"default_font", # so that we don't have to import a font by ourselfes
-"tonemapping_luts",# 
-"webgl2",
-"png"]}
+    "bevy_pbr", #3d rendering
+    "bevy_sprite", #2d rendering
+    "bevy_state", #state management
+    "bevy_text",#if we need text
+    "custom_cursor",#otherwise on web it crashes
+    "default_font", # so that we don't have to import a font by ourselfes
+    "tonemapping_luts",#
+    "webgl2",
+    "png",
+    "bevy_mesh_picking_backend"
+]}
 #bevy-inspector-egui = "0.28.0"
 
 bevy_panorbit_camera = "0.21"
