@@ -1,25 +1,25 @@
-use std::rc::{Rc, Weak};
+use std::sync::{Arc, Weak};
 
 use serde::Deserialize;
 
 #[derive(Debug)]
-pub struct MeshNode {
+pub struct MeshTreeNode {
     url: String,
-    parent: Weak<MeshNode>,
-    children: Vec<Rc<MeshNode>>,
+    parent: Weak<MeshTreeNode>,
+    children: Vec<Arc<MeshTreeNode>>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct MeshNodeSerde {
+pub struct MeshTreeNodeSerde {
     url: String,
     #[serde(default)]
-    children: Vec<MeshNodeSerde>,
+    children: Vec<MeshTreeNodeSerde>,
 }
 
-impl MeshNode {
-    fn from_serde(mns: MeshNodeSerde, parent: Weak<MeshNode>) -> Rc<MeshNode> {
-        Rc::new_cyclic(|current_node| {
-            MeshNode {
+impl MeshTreeNode {
+    fn from_serde(mns: MeshTreeNodeSerde, parent: Weak<MeshTreeNode>) -> Arc<MeshTreeNode> {
+        Arc::new_cyclic(|current_node| {
+            MeshTreeNode {
                 url: mns.url,
                 children: mns.children.into_iter()
                     .map(|e| Self::from_serde(e, current_node.clone()))
@@ -29,15 +29,15 @@ impl MeshNode {
         })
     }
 
-    pub fn from_json(data: &str) -> Rc<MeshNode> {
-        let root: MeshNodeSerde = serde_json::from_str(data).unwrap();
-        return Self::from_serde(root, Weak::new());
+    pub fn from_json(data: &str) -> Arc<MeshTreeNode> {
+        let root: MeshTreeNodeSerde = serde_json::from_str(data).unwrap();
+        Self::from_serde(root, Weak::new())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::meshes_tree::MeshNodeSerde;
+    use crate::meshes_tree::MeshTreeNodeSerde;
 
     const TEST: &str = r#"{
         "url": "http://localhost:8080/mendocino.stl",
@@ -50,6 +50,6 @@ mod tests {
 
     #[test]
     fn test_from_json() {
-        println!("{:?}", serde_json::from_str::<MeshNodeSerde>(TEST).unwrap());
+        println!("{:?}", serde_json::from_str::<MeshTreeNodeSerde>(TEST).unwrap());
     }
 }

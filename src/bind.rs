@@ -4,11 +4,11 @@ use wasm_bindgen::prelude::wasm_bindgen;
 extern "C" {
     pub fn get_url_fragment() -> String;
 
-    pub fn console_log(s: &str);
+    pub fn log_string(s: &str);
 }
 
 macro_rules! console_log {
     // Note that this is using the `log` function imported above during
     // `bare_bones`
-    ($($t:tt)*) => (console_log(&format_args!($($t)*).to_string()))
+    ($($t:tt)*) => ($crate::bind::log_string(&format_args!($($t)*).to_string()))
 }
