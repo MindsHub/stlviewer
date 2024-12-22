@@ -13,7 +13,7 @@ use bevy::{
 };
 //use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
-use loading::{unload_current_visualization, LoadingData, VisualizzationComponents};
+use loading::{unload_current_visualization, LoadingData, LoadingState, VisualizzationComponents};
 use bevy_web_asset::WebAssetPlugin;
 use meshes_tree::MeshTreeNode;
 use rotating::{rotate, Rotate};
@@ -172,8 +172,11 @@ fn update_current_sys(
         return;
     };
 
+    // switch to the loading state
+    commands.set_state(LoadingState::Loading);
+
     match get_render_mode(&mesh_tree_node) {
-        MeshRenderMode::Leave { url } => {
+        MeshRenderMode::Leaf { url } => {
             // we need to render a single item and let the user move the camera
 
             let model = asset_server.load(url);
@@ -184,17 +187,12 @@ fn update_current_sys(
                 Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)).with_scale(Vec3::splat(0.05)),
                 VisualizzationComponents,
                 Visibility::Hidden,
-            ))
-                .observe(update_material_on::<Pointer<Over>>(mesh_tree.hover_matl.clone()))
-                .observe(update_material_on::<Pointer<Out>>(mesh_tree.white_matl.clone()))
-                .observe(update_material_on::<Pointer<Down>>(mesh_tree.pressed_matl.clone()))
-                .observe(update_material_on::<Pointer<Up>>(mesh_tree.up_matl.clone()));
+            ));
         },
 
         MeshRenderMode::Subtree { urls } => {
             // we need to render multiple rotating items but the camera should stay still
-
-            for url in urls {
+            for (child_index, url) in urls {
                 let model = asset_server.load(url);
                 loading_data.add_asset(&model);
                 commands.spawn((
@@ -208,32 +206,37 @@ fn update_current_sys(
                     .observe(update_material_on::<Pointer<Over>>(mesh_tree.hover_matl.clone()))
                     .observe(update_material_on::<Pointer<Out>>(mesh_tree.white_matl.clone()))
                     .observe(update_material_on::<Pointer<Down>>(mesh_tree.pressed_matl.clone()))
-                    .observe(update_material_on::<Pointer<Up>>(mesh_tree.up_matl.clone()));
+                    .observe(child_child_as_current_on::<Pointer<Up>>(child_index));
             }
         },
     }
 }
 
 enum MeshRenderMode {
-    Leave { url: String },
-    Subtree { urls: Vec<String> },
+    Leaf { url: String },
+    Subtree { urls: Vec<(usize, String)> },
 }
 
 fn get_render_mode(mesh_tree_node: &Arc<MeshTreeNode>) -> MeshRenderMode {
+    console_log!("get_render_mode {mesh_tree_node:?}");
+
     if mesh_tree_node.children.is_empty() {
-        return MeshRenderMode::Leave { url: mesh_tree_node.url.clone() };
+        return MeshRenderMode::Leaf { url: mesh_tree_node.url.clone() };
     }
 
     if mesh_tree_node.children.len() == 1 {
         if let Some(child) = mesh_tree_node.children.first() {
             if child.children.is_empty() {
-                return MeshRenderMode::Leave { url: child.url.clone() }
+                return MeshRenderMode::Leaf { url: child.url.clone() }
             }
         }
     }
 
     MeshRenderMode::Subtree {
-        urls: mesh_tree_node.children.iter().map(|child| child.url.clone()).collect()
+        urls: mesh_tree_node.children.iter()
+            .enumerate()
+            .map(|(index, child)| (index, child.url.clone()))
+            .collect()
     }
 }
 
@@ -251,3 +254,13 @@ fn update_material_on<E>(
     }
 }
 
+fn child_child_as_current_on<E>(
+    child_index: usize
+) -> impl Fn(Trigger<E>, Commands, ResMut<MeshTreeRes>, ResMut<OneShotSystemsRes>) {
+    move |_, mut commands, mut mesh_tree, one_shot_systems| {
+        let Some(current) = mesh_tree.current.upgrade() else { return; };
+        let Some(child) = current.children.get(child_index) else { return; };
+        mesh_tree.current = Arc::downgrade(child);
+        commands.run_system(one_shot_systems.update_current_sys);
+    }
+}
