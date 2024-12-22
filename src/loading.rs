@@ -38,10 +38,9 @@ impl Plugin for LoadingScreenPlugin {
             );
     }
 }
-fn load_loading_screen(loading_data: Res<LoadingData>, mut commands: Commands) {
 
+fn load_loading_screen(loading_data: Res<LoadingData>, mut commands: Commands) {
     info!("load_loading_screen");
-    
     commands.spawn((
         LoadingScreen,
         Sprite {
@@ -51,12 +50,12 @@ fn load_loading_screen(loading_data: Res<LoadingData>, mut commands: Commands) {
     ));
     commands.spawn((LoadingScreen, Camera2d));
 }
+
 fn clear_loading_screen(
     mut commands: Commands,
     loading: Query<Entity, With<LoadingScreen>>,
-    mut loaded: Query<&mut Visibility, With<VisualizzationComponents>>,
-    mut camera: Option<Single<&mut Camera, With<VisualizzationComponents>>>,
-    
+    mut loaded: Query<&mut Visibility, With<VisualizationComponents>>,
+    mut camera: Option<Single<&mut Camera, With<VisualizationComponents>>>,
 ) {
     info!("clear_loading_screen");
     for entity in loading.iter() {
@@ -91,8 +90,8 @@ pub struct LoadingData {
     // Current number of confirmation frames.
     confirmation_frames_count: usize,
 }
+
 impl LoadingData {
-    #[allow(dead_code)]
     pub fn add_asset<C: Asset>(&mut self, asset: &Handle<C>) {
         self.loading_assets.push(asset.clone().untyped());
     }
@@ -117,10 +116,10 @@ fn setup(asset_server: ResMut<AssetServer>, mut loading_data: ResMut<LoadingData
 // Marker component for easier deletion of entities.
 #[derive(Component)]
 #[require(Visibility(|| Visibility::Visible))]
-pub struct VisualizzationComponents;
+pub struct VisualizationComponents;
 
 // Removes all currently loaded level assets from the game World.
-pub fn unload_current_visualization(mut loading_state: ResMut<NextState<LoadingState>>, mut commands: Commands, loaded: Query<Entity, With<VisualizzationComponents>>) {
+pub fn unload_current_visualization(mut loading_state: ResMut<NextState<LoadingState>>, mut commands: Commands, loaded: Query<Entity, With<VisualizationComponents>>) {
     for entity in loaded.iter() {
         commands.entity(entity).despawn_recursive();
     }

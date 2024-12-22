@@ -13,7 +13,7 @@ use bevy::{
 };
 //use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
-use loading::{unload_current_visualization, LoadingData, LoadingState, VisualizzationComponents};
+use loading::{unload_current_visualization, LoadingData, LoadingState, VisualizationComponents};
 use bevy_web_asset::WebAssetPlugin;
 use meshes_tree::MeshTreeNode;
 use rotating::{rotate, Rotate};
@@ -102,7 +102,7 @@ fn setup(
             ..default()
         },
         Transform::from_xyz(1.0, 1.0, 1.0).looking_at(Vec3::ZERO, Vec3::Y),
-        VisualizzationComponents,
+        VisualizationComponents,
         Visibility::Hidden,
     )).id();
 
@@ -115,7 +115,7 @@ fn setup(
             ..default()
         },
         Transform::from_xyz(6.0, 7.0, 4.0).looking_at(Vec3::ZERO, Vec3::Y),
-        VisualizzationComponents,
+        VisualizationComponents,
     )).add_child(light);
 
     // materials
@@ -185,7 +185,7 @@ fn update_current_sys(
                 Mesh3d(model),
                 MeshMaterial3d(mesh_tree.white_matl.clone()),
                 Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)).with_scale(Vec3::splat(0.05)),
-                VisualizzationComponents,
+                VisualizationComponents,
                 Visibility::Hidden,
             ));
         },
@@ -199,7 +199,7 @@ fn update_current_sys(
                     Mesh3d(model),
                     MeshMaterial3d(mesh_tree.white_matl.clone()),
                     Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)).with_scale(Vec3::splat(0.05)),
-                    VisualizzationComponents,
+                    VisualizationComponents,
                     Visibility::Hidden,
                     Rotate,
                 ))
