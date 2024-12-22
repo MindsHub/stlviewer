@@ -8,7 +8,7 @@ mod meshes_tree;
 use std::sync::{Arc, Weak};
 
 use bevy::{
-    asset::AssetMetaCheck, color::palettes::tailwind::{CYAN_300, GREEN_300, YELLOW_300}, diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin}, prelude::*, render::mesh, window::PresentMode
+    asset::AssetMetaCheck, color::palettes::tailwind::{CYAN_300, GREEN_300, YELLOW_300}, diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin}, ecs::system::SystemId, prelude::*, render::mesh, window::PresentMode
 };
 //use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -26,6 +26,23 @@ pub enum Resolution {
 pub struct MeshTreeRes {
     root: Arc<MeshTreeNode>,
     current: Weak<MeshTreeNode>,
+    white_matl: Handle<StandardMaterial>,
+    hover_matl: Handle<StandardMaterial>,
+    pressed_matl: Handle<StandardMaterial>,
+    up_matl: Handle<StandardMaterial>,
+}
+
+#[derive(Resource)]
+pub struct OneShotSystemsRes {
+    update_current_sys: SystemId
+}
+
+impl FromWorld for OneShotSystemsRes {
+    fn from_world(world: &mut World) -> Self {
+        OneShotSystemsRes {
+            update_current_sys: world.register_system(update_current_sys)
+        }
+    }
 }
 
 fn main() {
@@ -47,61 +64,27 @@ fn main() {
     App::new()
         .add_plugins(WebAssetPlugin::default())
         .add_plugins(DefaultPlugins.set(asset).set(window))
-        .add_plugins(MeshPickingPlugin)
-        //.add_plugins(WorldInspectorPlugin::new())
-        .init_resource::<Resolution>()
         .add_plugins(bevy_stl::StlPlugin)
+        .add_plugins(LogDiagnosticsPlugin::default())
+        .add_plugins(PanOrbitCameraPlugin)
+        .add_plugins(loading::LoadingScreenPlugin)
+        //.add_plugins(WorldInspectorPlugin::new())
+        //.add_plugins(FrameTimeDiagnosticsPlugin)
+        .init_resource::<Resolution>()
+        .init_resource::<OneShotSystemsRes>()
         .add_systems(
             Update,
             (unload_current_visualization, setup).chain().run_if(resource_changed::<Resolution>),
         )
-        .add_plugins(FrameTimeDiagnosticsPlugin)
-        .add_plugins(LogDiagnosticsPlugin::default())
-        .add_plugins(PanOrbitCameraPlugin)
-        .add_plugins(loading::LoadingScreenPlugin)
         .run();
 }
 
 /// set up a simple 3D scene
 fn setup(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    asset_server: ResMut<AssetServer>,
-    mut loading_data: ResMut<LoadingData>,
+    one_shot_systems: ResMut<OneShotSystemsRes>,
 ) {
-    // Set up the materials.
-    let white_matl = materials.add(Color::WHITE);
-    let hover_matl = materials.add(Color::from(CYAN_300));
-    let pressed_matl = materials.add(Color::from(YELLOW_300));
-    let up_matl = materials.add(Color::from(GREEN_300));
-
-    let mesh_tree_root = MeshTreeNode::from_json(r#"{
-        "url": "http://localhost:8080/mendocino.stl",
-        "children": [
-            {
-                "url": "http://localhost:8080/benchy.stl"
-            }
-        ]
-    }"#);
-    console_log!("Meshes: {mesh_tree_root:?}");
-    let initial_mesh_node = Arc::downgrade(&mesh_tree_root);
-    commands.insert_resource(MeshTreeRes { root: mesh_tree_root, current: initial_mesh_node });
-
-    let model = asset_server.load(bind::get_url_fragment());
-    loading_data.add_asset(&model);
-    commands.spawn((
-        Mesh3d(model),
-        MeshMaterial3d(white_matl.clone()),
-        Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)).with_scale(Vec3::splat(0.05)),
-        VisualizzationComponents,
-        Visibility::Hidden,
-    ))
-        .observe(update_material_on::<Pointer<Over>>(hover_matl.clone()))
-        .observe(update_material_on::<Pointer<Out>>(white_matl.clone()))
-        .observe(update_material_on::<Pointer<Down>>(pressed_matl.clone()))
-        .observe(update_material_on::<Pointer<Up>>(up_matl.clone()));
-
     // light
     let light = commands.spawn((
         DirectionalLight {
@@ -116,10 +99,7 @@ fn setup(
     // camera
     commands.spawn((
         Camera3d::default(),
-        PanOrbitCamera {
-            pitch_lower_limit: Some(0.0),
-            ..default()
-        },
+        PanOrbitCamera::default(),
         Camera {
             is_active: false,
             ..default()
@@ -127,8 +107,63 @@ fn setup(
         Transform::from_xyz(6.0, 7.0, 4.0).looking_at(Vec3::ZERO, Vec3::Y),
         VisualizzationComponents,
     )).add_child(light);
+
+    // materials
+    let white_matl = materials.add(Color::WHITE);
+    let hover_matl = materials.add(Color::from(CYAN_300));
+    let pressed_matl = materials.add(Color::from(YELLOW_300));
+    let up_matl = materials.add(Color::from(GREEN_300));
+
+    // load tree of meshes to navigate through
+    let mesh_tree_root = MeshTreeNode::from_json(r#"{
+        "url": "http://localhost:8080/mendocino.stl",
+        "children": [
+            {
+                "url": "http://localhost:8080/benchy.stl"
+            }
+        ]
+    }"#);
+    console_log!("Meshes: {mesh_tree_root:?}");
+    let initial_mesh_node = Arc::downgrade(&mesh_tree_root);
+
+    // setup the main resource
+    commands.insert_resource(
+        MeshTreeRes {
+            root: mesh_tree_root,
+            current: initial_mesh_node,
+            white_matl,
+            hover_matl,
+            pressed_matl,
+            up_matl,
+        }
+    );
+
+    // show the initial entities
+    commands.run_system(one_shot_systems.update_current_sys);
 }
 
+fn update_current_sys(
+    mut commands: Commands,
+    asset_server: ResMut<AssetServer>,
+    mut loading_data: ResMut<LoadingData>,
+    mesh_tree: Res<MeshTreeRes>,
+) {
+    console_log!("update_current_sys called");
+
+    let model = asset_server.load(bind::get_url_fragment());
+    loading_data.add_asset(&model);
+    commands.spawn((
+        Mesh3d(model),
+        MeshMaterial3d(mesh_tree.white_matl.clone()),
+        Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)).with_scale(Vec3::splat(0.05)),
+        VisualizzationComponents,
+        Visibility::Hidden,
+    ))
+        .observe(update_material_on::<Pointer<Over>>(mesh_tree.hover_matl.clone()))
+        .observe(update_material_on::<Pointer<Out>>(mesh_tree.white_matl.clone()))
+        .observe(update_material_on::<Pointer<Down>>(mesh_tree.pressed_matl.clone()))
+        .observe(update_material_on::<Pointer<Up>>(mesh_tree.up_matl.clone()));
+}
 
 /// Returns an observer that updates the entity's material to the one specified.
 fn update_material_on<E>(
