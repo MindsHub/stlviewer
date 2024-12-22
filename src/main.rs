@@ -5,7 +5,7 @@ mod loading;
 mod bind;
 mod meshes_tree;
 
-use std::sync::{Arc, Weak};
+use std::{borrow::Borrow, sync::{Arc, Weak}};
 
 use bevy::{
     asset::AssetMetaCheck, color::palettes::tailwind::{CYAN_300, GREEN_300, YELLOW_300}, diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin}, ecs::system::SystemId, prelude::*, render::mesh, window::PresentMode
@@ -147,22 +147,63 @@ fn update_current_sys(
     asset_server: ResMut<AssetServer>,
     mut loading_data: ResMut<LoadingData>,
     mesh_tree: Res<MeshTreeRes>,
+    current_meshes: Query<(Entity, &Mesh3d)>,
 ) {
     console_log!("update_current_sys called");
 
-    let model = asset_server.load(bind::get_url_fragment());
-    loading_data.add_asset(&model);
-    commands.spawn((
-        Mesh3d(model),
-        MeshMaterial3d(mesh_tree.white_matl.clone()),
-        Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)).with_scale(Vec3::splat(0.05)),
-        VisualizzationComponents,
-        Visibility::Hidden,
-    ))
-        .observe(update_material_on::<Pointer<Over>>(mesh_tree.hover_matl.clone()))
-        .observe(update_material_on::<Pointer<Out>>(mesh_tree.white_matl.clone()))
-        .observe(update_material_on::<Pointer<Down>>(mesh_tree.pressed_matl.clone()))
-        .observe(update_material_on::<Pointer<Up>>(mesh_tree.up_matl.clone()));
+    // despawn all current meshes
+    current_meshes.iter().for_each(|(entity, _)| commands.entity(entity).despawn());
+
+    let Some(mesh_tree_node) = mesh_tree.current.upgrade() else {
+        // something went wrong, nothing to do
+        return;
+    };
+
+    match get_render_mode(&mesh_tree_node) {
+        MeshRenderMode::Leave { url } => {
+            // we need to render a single item and let the user move the camera
+
+            let model = asset_server.load(url);
+            loading_data.add_asset(&model);
+            commands.spawn((
+                Mesh3d(model),
+                MeshMaterial3d(mesh_tree.white_matl.clone()),
+                Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)).with_scale(Vec3::splat(0.05)),
+                VisualizzationComponents,
+                Visibility::Hidden,
+            ))
+                .observe(update_material_on::<Pointer<Over>>(mesh_tree.hover_matl.clone()))
+                .observe(update_material_on::<Pointer<Out>>(mesh_tree.white_matl.clone()))
+                .observe(update_material_on::<Pointer<Down>>(mesh_tree.pressed_matl.clone()))
+                .observe(update_material_on::<Pointer<Up>>(mesh_tree.up_matl.clone()));
+        },
+        MeshRenderMode::Subtree { urls } => {
+            // we need to render multiple rotating items but the camera should stay still
+        },
+    }
+}
+
+enum MeshRenderMode {
+    Leave { url: String },
+    Subtree { urls: Vec<String> },
+}
+
+fn get_render_mode(mesh_tree_node: &Arc<MeshTreeNode>) -> MeshRenderMode {
+    if mesh_tree_node.children.is_empty() {
+        return MeshRenderMode::Leave { url: mesh_tree_node.url.clone() };
+    }
+
+    if mesh_tree_node.children.len() == 1 {
+        if let Some(child) = mesh_tree_node.children.first() {
+            if child.children.is_empty() {
+                return MeshRenderMode::Leave { url: child.url.clone() }
+            }
+        }
+    }
+
+    MeshRenderMode::Subtree {
+        urls: mesh_tree_node.children.iter().map(|child| child.url.clone()).collect()
+    }
 }
 
 /// Returns an observer that updates the entity's material to the one specified.

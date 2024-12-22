@@ -4,9 +4,9 @@ use serde::Deserialize;
 
 #[derive(Debug)]
 pub struct MeshTreeNode {
-    url: String,
-    parent: Weak<MeshTreeNode>,
-    children: Vec<Arc<MeshTreeNode>>,
+    pub url: String,
+    pub parent: Weak<MeshTreeNode>,
+    pub children: Vec<Arc<MeshTreeNode>>,
 }
 
 #[derive(Debug, Deserialize)]
