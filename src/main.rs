@@ -4,6 +4,7 @@ mod loading;
 #[macro_use]
 mod bind;
 mod meshes_tree;
+mod rotating;
 
 use std::sync::{Arc, Weak};
 
@@ -15,6 +16,7 @@ use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 use loading::{unload_current_visualization, LoadingData, VisualizzationComponents};
 use bevy_web_asset::WebAssetPlugin;
 use meshes_tree::MeshTreeNode;
+use rotating::{rotate, Rotate};
 
 #[derive(Default, Debug, Resource)]
 pub enum Resolution {
@@ -83,6 +85,7 @@ fn main() {
             Update,
             (unload_current_visualization, setup).chain().run_if(resource_changed::<Resolution>),
         )
+        .add_systems(Update, rotate)
         .run();
 }
 
@@ -123,10 +126,13 @@ fn setup(
 
     // load tree of meshes to navigate through
     let mesh_tree_root = MeshTreeNode::from_json(r#"{
-        "url": "http://localhost:8080/mendocino.stl",
+        "url": "useless",
         "children": [
             {
                 "url": "http://localhost:8080/benchy.stl"
+            },
+            {
+                "url": "http://localhost:8080/mendocino.stl"
             }
         ]
     }"#);
@@ -154,12 +160,12 @@ fn update_current_sys(
     asset_server: ResMut<AssetServer>,
     mut loading_data: ResMut<LoadingData>,
     mesh_tree: Res<MeshTreeRes>,
-    current_meshes: Query<(Entity, &Mesh3d)>,
+    current_meshes: Query<Entity, With<Mesh3d>>,
 ) {
     console_log!("update_current_sys called");
 
     // despawn all current meshes
-    current_meshes.iter().for_each(|(entity, _)| commands.entity(entity).despawn());
+    current_meshes.iter().for_each(|entity| commands.entity(entity).despawn());
 
     let Some(mesh_tree_node) = mesh_tree.current.upgrade() else {
         // something went wrong, nothing to do
@@ -184,8 +190,26 @@ fn update_current_sys(
                 .observe(update_material_on::<Pointer<Down>>(mesh_tree.pressed_matl.clone()))
                 .observe(update_material_on::<Pointer<Up>>(mesh_tree.up_matl.clone()));
         },
+
         MeshRenderMode::Subtree { urls } => {
             // we need to render multiple rotating items but the camera should stay still
+
+            for url in urls {
+                let model = asset_server.load(url);
+                loading_data.add_asset(&model);
+                commands.spawn((
+                    Mesh3d(model),
+                    MeshMaterial3d(mesh_tree.white_matl.clone()),
+                    Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)).with_scale(Vec3::splat(0.05)),
+                    VisualizzationComponents,
+                    Visibility::Hidden,
+                    Rotate,
+                ))
+                    .observe(update_material_on::<Pointer<Over>>(mesh_tree.hover_matl.clone()))
+                    .observe(update_material_on::<Pointer<Out>>(mesh_tree.white_matl.clone()))
+                    .observe(update_material_on::<Pointer<Down>>(mesh_tree.pressed_matl.clone()))
+                    .observe(update_material_on::<Pointer<Up>>(mesh_tree.up_matl.clone()));
+            }
         },
     }
 }
