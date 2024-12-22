@@ -8,7 +8,7 @@ mod meshes_tree;
 use std::sync::{Arc, Weak};
 
 use bevy::{
-    asset::AssetMetaCheck, color::palettes::tailwind::{CYAN_300, YELLOW_300}, diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin}, prelude::*, render::mesh, window::PresentMode
+    asset::AssetMetaCheck, color::palettes::tailwind::{CYAN_300, GREEN_300, YELLOW_300}, diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin}, prelude::*, render::mesh, window::PresentMode
 };
 //use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -74,6 +74,7 @@ fn setup(
     let white_matl = materials.add(Color::WHITE);
     let hover_matl = materials.add(Color::from(CYAN_300));
     let pressed_matl = materials.add(Color::from(YELLOW_300));
+    let up_matl = materials.add(Color::from(GREEN_300));
 
     let mesh_tree_root = MeshTreeNode::from_json(r#"{
         "url": "http://localhost:8080/mendocino.stl",
@@ -99,7 +100,7 @@ fn setup(
         .observe(update_material_on::<Pointer<Over>>(hover_matl.clone()))
         .observe(update_material_on::<Pointer<Out>>(white_matl.clone()))
         .observe(update_material_on::<Pointer<Down>>(pressed_matl.clone()))
-        .observe(update_material_on::<Pointer<Up>>(hover_matl.clone()));
+        .observe(update_material_on::<Pointer<Up>>(up_matl.clone()));
 
     // light
     let light = commands.spawn((
