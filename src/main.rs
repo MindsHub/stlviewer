@@ -5,10 +5,10 @@ mod loading;
 mod bind;
 mod meshes_tree;
 
-use std::{borrow::Borrow, sync::{Arc, Weak}};
+use std::sync::{Arc, Weak};
 
 use bevy::{
-    asset::AssetMetaCheck, color::palettes::tailwind::{CYAN_300, GREEN_300, YELLOW_300}, diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin}, ecs::system::SystemId, prelude::*, render::mesh, window::PresentMode
+    asset::AssetMetaCheck, color::palettes::tailwind::{CYAN_300, GREEN_300, YELLOW_300}, diagnostic::LogDiagnosticsPlugin, ecs::system::SystemId, prelude::*, window::PresentMode
 };
 //use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -24,8 +24,14 @@ pub enum Resolution {
 
 #[derive(Resource, Component)]
 pub struct MeshTreeRes {
-    root: Arc<MeshTreeNode>,
+    // not meant to be used, just to keep a strong reference to the root
+    _root: Arc<MeshTreeNode>,
+
+    // the current node of the tree to render (which might be a leave with
+    // just one mesh or a menu with multiple meshes to select from)
     current: Weak<MeshTreeNode>,
+
+    // some materials
     white_matl: Handle<StandardMaterial>,
     hover_matl: Handle<StandardMaterial>,
     pressed_matl: Handle<StandardMaterial>,
@@ -68,6 +74,7 @@ fn main() {
         .add_plugins(LogDiagnosticsPlugin::default())
         .add_plugins(PanOrbitCameraPlugin)
         .add_plugins(loading::LoadingScreenPlugin)
+        .add_plugins(MeshPickingPlugin)
         //.add_plugins(WorldInspectorPlugin::new())
         //.add_plugins(FrameTimeDiagnosticsPlugin)
         .init_resource::<Resolution>()
@@ -129,7 +136,7 @@ fn setup(
     // setup the main resource
     commands.insert_resource(
         MeshTreeRes {
-            root: mesh_tree_root,
+            _root: mesh_tree_root,
             current: initial_mesh_node,
             white_matl,
             hover_matl,
