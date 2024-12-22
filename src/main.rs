@@ -45,6 +45,12 @@ pub struct OneShotSystemsRes {
     update_current_sys: SystemId
 }
 
+#[derive(Component)]
+pub enum CameraType {
+    Rotating,
+    Fixed,
+}
+
 impl FromWorld for OneShotSystemsRes {
     fn from_world(world: &mut World) -> Self {
         OneShotSystemsRes {
@@ -89,6 +95,8 @@ fn main() {
         .run();
 }
 
+const CAMERA_START_POSITION_ROTATING: Transform = Transform::from_xyz(6.0, 7.0, 4.0);
+
 /// set up a simple 3D scene
 fn setup(
     mut commands: Commands,
@@ -114,7 +122,7 @@ fn setup(
             is_active: false,
             ..default()
         },
-        Transform::from_xyz(6.0, 7.0, 4.0).looking_at(Vec3::ZERO, Vec3::Y),
+        CAMERA_START_POSITION_ROTATING.looking_at(Vec3::ZERO, Vec3::Y),
         VisualizationComponents,
     )).add_child(light);
 
@@ -161,6 +169,7 @@ fn update_current_sys(
     mut loading_data: ResMut<LoadingData>,
     mesh_tree: Res<MeshTreeRes>,
     current_meshes: Query<Entity, With<Mesh3d>>,
+    mut camera: Query<(&mut Transform, &mut PanOrbitCamera), With<Camera3d>>,
 ) {
     console_log!("update_current_sys called");
 
@@ -172,12 +181,15 @@ fn update_current_sys(
         return;
     };
 
-    // switch to the loading state
+    // switch to the loading state, since we are going to load more assets
     commands.set_state(LoadingState::Loading);
+    let (mut camera_transform, mut camera_pan_orbit) = camera.single_mut();
 
     match get_render_mode(&mesh_tree_node) {
         MeshRenderMode::Leaf { url } => {
             // we need to render a single item and let the user move the camera
+            *camera_transform = CAMERA_START_POSITION_ROTATING.looking_at(Vec3::ZERO, Vec3::Y);
+            camera_pan_orbit.enabled = true;
 
             let model = asset_server.load(url);
             loading_data.add_asset(&model);
@@ -192,6 +204,9 @@ fn update_current_sys(
 
         MeshRenderMode::Subtree { urls } => {
             // we need to render multiple rotating items but the camera should stay still
+            *camera_transform = CAMERA_START_POSITION_ROTATING.looking_at(Vec3::ZERO, Vec3::Y);
+            camera_pan_orbit.enabled = false;
+
             for (child_index, url) in urls {
                 let model = asset_server.load(url);
                 loading_data.add_asset(&model);
