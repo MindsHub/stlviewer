@@ -151,8 +151,8 @@ fn update_loading_data(
         }
 
         // Remove all loaded assets from the loading_assets list.
-        for i in pop_list.iter() {
-            loading_data.loading_assets.remove(*i);
+        for i in pop_list.into_iter().rev() {
+            loading_data.loading_assets.remove(i);
         }
 
         // If there are no more assets being monitored, and pipelines
