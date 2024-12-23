@@ -1,5 +1,3 @@
-//! A simple 3D scene with light shining over a cube sitting on a plane.
-
 mod loading;
 #[macro_use]
 mod bind;
@@ -17,12 +15,6 @@ use loading::{unload_current_visualization, LoadingData, LoadingState, Visualiza
 use bevy_web_asset::WebAssetPlugin;
 use meshes_tree::MeshTreeNode;
 use rotating::{rotate, Rotate};
-
-#[derive(Default, Debug, Resource)]
-pub enum Resolution {
-    #[default]
-    Cube,
-}
 
 #[derive(Resource, Component)]
 pub struct MeshTreeRes {
@@ -85,11 +77,10 @@ fn main() {
         .add_plugins(MeshPickingPlugin)
         //.add_plugins(WorldInspectorPlugin::new())
         //.add_plugins(FrameTimeDiagnosticsPlugin)
-        .init_resource::<Resolution>()
         .init_resource::<OneShotSystemsRes>()
         .add_systems(
             Update,
-            (unload_current_visualization, setup).chain().run_if(resource_changed::<Resolution>),
+            (unload_current_visualization, setup).chain(),
         )
         .add_systems(Update, rotate)
         .run();
