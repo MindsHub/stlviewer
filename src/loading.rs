@@ -1,6 +1,6 @@
 //! Shows how to create a loading screen that waits for assets to load and render.
 
-use bevy::prelude::*;
+use bevy::{math::Vec3A, prelude::*, render::mesh::MeshAabb, utils::hashbrown::HashMap};
 use pipelines_ready::*;
 
 // The way we'll go about doing this in this example is to
@@ -31,7 +31,7 @@ impl Plugin for LoadingScreenPlugin {
             )
             .add_systems(
                 OnEnter(LoadingState::Ready),
-                clear_loading_screen,
+                (clear_loading_screen, resize_meshes),
             ).add_systems(
                 OnEnter(LoadingState::Loading),
                 load_loading_screen,
@@ -209,4 +209,38 @@ mod pipelines_ready {
             pipelines_ready.0 = pipelines.waiting_pipelines().count() == 0;
         }
     }
+}
+
+fn resize_meshes(mut commands: Commands, mut q: Query<(Entity, &Mesh3d)>, mut meshes: ResMut<Assets<Mesh>>,){
+    //for each entity with an associated mesh
+    let mut to_update = HashMap::new();
+    for (_, mesh) in &mut q{
+        if to_update.contains_key(&mesh.0){
+            continue;
+        }
+        // get the mesh throught the handle
+        meshes.get_mut(&mesh.0).and_then(|m|{
+            
+            // computing axis_aligned_bounding_box
+            let bounding = m.compute_aabb()?;
+            let center: Vec3 = bounding.center.into();
+            m.translate_by(-center);
+
+            let mut bounding = m.compute_aabb()?;
+            // get the max dimension
+            let elem = bounding.half_extents.max_element();
+            // rescale the mesh, and update the entity
+            m.scale_by(Vec3::splat(0.5/elem));
+            
+            bounding.half_extents*=0.5/elem;
+            bounding.center=Vec3A::splat(0.0);
+            to_update.insert(mesh.0.clone(), bounding);
+            Some(())
+        });
+    }
+    for (entity, mesh) in &mut q{
+        // is necessary to update the bounding boxes by hand
+        commands.entity(entity).insert(to_update.get(&mesh.0).unwrap().clone());
+    }
+
 }

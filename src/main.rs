@@ -212,7 +212,7 @@ fn update_current_sys(
                     Mesh3d(model),
                     MeshMaterial3d(mesh_tree.white_matl.clone()),
                     Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2))
-                        .with_scale(Vec3::splat(scale * 0.02))
+                        .with_scale(Vec3::splat(scale))
                         .with_translation(Vec3 { x: w, y: h, z: 0.0 }),
                     VisualizationComponents,
                     Visibility::Hidden,
@@ -298,7 +298,7 @@ fn generate_positions(mesh_count: usize, window_height: f32, window_width: f32) 
     }
     positions.truncate(mesh_count);
 
-    let scale = f32::min(viewport_height / (height as f32), viewport_width / (width as f32));
+    let scale = f32::min(viewport_height / (height as f32), viewport_width / (width as f32))*0.9;
     (positions, scale)
 }
 
