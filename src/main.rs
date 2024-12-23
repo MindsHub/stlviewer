@@ -123,12 +123,15 @@ fn setup(
     let mesh_tree_root = MeshTreeNode::from_json(r#"{
         "url": "useless",
         "children": [
-            {
-                "url": "http://localhost:8080/benchy.stl"
-            },
-            {
-                "url": "http://localhost:8080/mendocino.stl"
-            }
+            { "url": "http://localhost:8080/benchy.stl" },
+            { "url": "http://localhost:8080/mendocino.stl" },
+            { "url": "http://localhost:8080/benchy.stl" },
+            { "url": "http://localhost:8080/mendocino.stl" },
+            { "url": "http://localhost:8080/benchy.stl" },
+            { "url": "http://localhost:8080/mendocino.stl" },
+            { "url": "https://files.printables.com/media/prints/1109750/stls/8384921_616f48b1-343a-44be-9706-270e717d37fc_c57a5d1a-11f4-419d-b7ed-69836936406b/notredameparis2.stl" },
+            { "url": "https://files.printables.com/media/prints/888961/stls/6807211_1d4002d8-8af3-41bb-8706-1a0fa0cfd25b_52419fc3-bee6-4483-8843-fb1590d37704/einsteinpot.stl" },
+            { "url": "https://files.printables.com/media/prints/2236/stls/14012_b9139bd5-c68b-46a5-ba28-6513f9715d83/3dbenchy.stl" }
         ]
     }"#);
     console_log!("Meshes: {mesh_tree_root:?}");
@@ -156,7 +159,7 @@ fn update_current_sys(
     mut loading_data: ResMut<LoadingData>,
     mesh_tree: Res<MeshTreeRes>,
     current_meshes: Query<Entity, With<Mesh3d>>,
-    mut camera: Query<(&mut Transform, &mut PanOrbitCamera), With<Camera3d>>,
+    mut camera: Query<&mut PanOrbitCamera, With<Camera3d>>,
     window: Query<&Window>,
 ) {
     console_log!("update_current_sys called");
@@ -171,21 +174,23 @@ fn update_current_sys(
 
     // switch to the loading state, since we are going to load more assets
     commands.set_state(LoadingState::Loading);
-    let (mut camera_transform, mut camera_pan_orbit) = camera.single_mut();
+    let mut camera_pan_orbit = camera.single_mut();
     let window = window.single();
 
     match get_render_mode(&mesh_tree_node) {
         MeshRenderMode::Leaf { url } => {
             // we need to render a single item and let the user move the camera
-            *camera_transform = Transform::from_xyz(6.0, 7.0, 4.0).looking_at(Vec3::ZERO, Vec3::Y);
             camera_pan_orbit.enabled = true;
+            camera_pan_orbit.target_radius = 2.0;
+            camera_pan_orbit.target_yaw = 0.5;
+            camera_pan_orbit.target_pitch = 0.5;
 
             let model = asset_server.load(url);
             loading_data.add_asset(&model);
             commands.spawn((
                 Mesh3d(model),
                 MeshMaterial3d(mesh_tree.white_matl.clone()),
-                Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)).with_scale(Vec3::splat(0.05)),
+                Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)).with_scale(Vec3::splat(0.02)),
                 VisualizationComponents,
                 Visibility::Hidden,
             ));
@@ -193,8 +198,10 @@ fn update_current_sys(
 
         MeshRenderMode::Subtree { urls } => {
             // we need to render multiple rotating items but the camera should stay still
-            *camera_transform = Transform::from_xyz(2.0, 0.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y);
             camera_pan_orbit.enabled = false;
+            camera_pan_orbit.target_radius = 2.0;
+            camera_pan_orbit.target_yaw = 0.0;
+            camera_pan_orbit.target_pitch = 0.0;
 
             let (positions, scale) = generate_positions(urls.len(), window.height(), window.width());
             console_log!("positions {positions:?}, scale {scale}");
@@ -206,7 +213,7 @@ fn update_current_sys(
                     MeshMaterial3d(mesh_tree.white_matl.clone()),
                     Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2))
                         .with_scale(Vec3::splat(scale * 0.02))
-                        .with_translation(Vec3 { x: 0.0, y: h, z: w }),
+                        .with_translation(Vec3 { x: w, y: h, z: 0.0 }),
                     VisualizationComponents,
                     Visibility::Hidden,
                     Rotate,
@@ -284,7 +291,7 @@ fn generate_positions(mesh_count: usize, window_height: f32, window_width: f32) 
         for j in 0..width {
             let (i, j, height, width) = (i as f32, j as f32, height as f32, width as f32);
             positions.push((
-                -viewport_height / 2.0 + viewport_height / height * (i + 0.5),
+                viewport_height / 2.0 - viewport_height / height * (i + 0.5),
                 -viewport_width / 2.0 + viewport_width / width * (j + 0.5),
             ));
         }
