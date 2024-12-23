@@ -4,10 +4,10 @@ mod bind;
 mod meshes_tree;
 mod rotating;
 
-use std::sync::{Arc, Weak};
+use std::{iter::zip, sync::{Arc, Weak}};
 
 use bevy::{
-    asset::AssetMetaCheck, color::palettes::tailwind::{CYAN_300, GREEN_300, YELLOW_300}, diagnostic::LogDiagnosticsPlugin, ecs::system::SystemId, prelude::*, window::PresentMode
+    asset::AssetMetaCheck, color::palettes::tailwind::{CYAN_300, GREEN_300, YELLOW_300}, diagnostic::LogDiagnosticsPlugin, ecs::system::SystemId, prelude::*, window::{PresentMode, WindowResized}
 };
 //use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -78,15 +78,11 @@ fn main() {
         //.add_plugins(WorldInspectorPlugin::new())
         //.add_plugins(FrameTimeDiagnosticsPlugin)
         .init_resource::<OneShotSystemsRes>()
-        .add_systems(
-            Update,
-            (unload_current_visualization, setup).chain(),
-        )
+        .add_systems(Startup, (unload_current_visualization, setup).chain())
         .add_systems(Update, rotate)
+        .add_systems(Update, update_window_size)
         .run();
 }
-
-const CAMERA_START_POSITION_ROTATING: Transform = Transform::from_xyz(6.0, 7.0, 4.0);
 
 /// set up a simple 3D scene
 fn setup(
@@ -113,7 +109,7 @@ fn setup(
             is_active: false,
             ..default()
         },
-        CAMERA_START_POSITION_ROTATING.looking_at(Vec3::ZERO, Vec3::Y),
+        Transform::default(),
         VisualizationComponents,
     )).add_child(light);
 
@@ -161,6 +157,7 @@ fn update_current_sys(
     mesh_tree: Res<MeshTreeRes>,
     current_meshes: Query<Entity, With<Mesh3d>>,
     mut camera: Query<(&mut Transform, &mut PanOrbitCamera), With<Camera3d>>,
+    window: Query<&Window>,
 ) {
     console_log!("update_current_sys called");
 
@@ -175,11 +172,12 @@ fn update_current_sys(
     // switch to the loading state, since we are going to load more assets
     commands.set_state(LoadingState::Loading);
     let (mut camera_transform, mut camera_pan_orbit) = camera.single_mut();
+    let window = window.single();
 
     match get_render_mode(&mesh_tree_node) {
         MeshRenderMode::Leaf { url } => {
             // we need to render a single item and let the user move the camera
-            *camera_transform = CAMERA_START_POSITION_ROTATING.looking_at(Vec3::ZERO, Vec3::Y);
+            *camera_transform = Transform::from_xyz(6.0, 7.0, 4.0).looking_at(Vec3::ZERO, Vec3::Y);
             camera_pan_orbit.enabled = true;
 
             let model = asset_server.load(url);
@@ -195,16 +193,20 @@ fn update_current_sys(
 
         MeshRenderMode::Subtree { urls } => {
             // we need to render multiple rotating items but the camera should stay still
-            *camera_transform = CAMERA_START_POSITION_ROTATING.looking_at(Vec3::ZERO, Vec3::Y);
+            *camera_transform = Transform::from_xyz(2.0, 0.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y);
             camera_pan_orbit.enabled = false;
 
-            for (child_index, url) in urls {
+            let (positions, scale) = generate_positions(urls.len(), window.height(), window.width());
+            console_log!("positions {positions:?}, scale {scale}");
+            for ((child_index, url), (h, w)) in zip(urls, positions) {
                 let model = asset_server.load(url);
                 loading_data.add_asset(&model);
                 commands.spawn((
                     Mesh3d(model),
                     MeshMaterial3d(mesh_tree.white_matl.clone()),
-                    Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)).with_scale(Vec3::splat(0.05)),
+                    Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2))
+                        .with_scale(Vec3::splat(scale * 0.02))
+                        .with_translation(Vec3 { x: 0.0, y: h, z: w }),
                     VisualizationComponents,
                     Visibility::Hidden,
                     Rotate,
@@ -244,6 +246,53 @@ fn get_render_mode(mesh_tree_node: &Arc<MeshTreeNode>) -> MeshRenderMode {
             .map(|(index, child)| (index, child.url.clone()))
             .collect()
     }
+}
+
+fn update_window_size(
+    mut commands: Commands,
+    mut events: EventReader<WindowResized>,
+    mesh_tree: Res<MeshTreeRes>,
+    one_shot_systems: ResMut<OneShotSystemsRes>,
+) {
+    for window_size in events.read() {
+        // if the window size changed, relayout the meshes
+        console_log!("window size changed to {window_size:?}");
+        if let Some(MeshRenderMode::Subtree { .. }) = mesh_tree.current.upgrade().map(|n| get_render_mode(&n)) {
+            commands.run_system(one_shot_systems.update_current_sys);
+        }
+    }
+}
+
+fn generate_positions(mesh_count: usize, window_height: f32, window_width: f32) -> (Vec<(f32, f32)>, f32) {
+    let ratio = window_width / window_height;
+    let height = (mesh_count as f32 / ratio).sqrt();
+    let width = (mesh_count as f32 * ratio).sqrt();
+    let viewport_height = 1.0; // the Bevy viewport has a fixed height
+    let viewport_width = viewport_height * ratio;
+
+    let (height, width) = if height.ceil() - height < width.ceil() - width {
+        let height = height.ceil() as usize;
+        (height, mesh_count.div_ceil(height))
+    } else {
+        let width = width.ceil() as usize;
+        (mesh_count.div_ceil(width), width)
+    };
+    assert!(height * width >= mesh_count);
+
+    let mut positions = Vec::new();
+    for i in 0..height {
+        for j in 0..width {
+            let (i, j, height, width) = (i as f32, j as f32, height as f32, width as f32);
+            positions.push((
+                -viewport_height / 2.0 + viewport_height / height * (i + 0.5),
+                -viewport_width / 2.0 + viewport_width / width * (j + 0.5),
+            ));
+        }
+    }
+    positions.truncate(mesh_count);
+
+    let scale = f32::min(viewport_height / (height as f32), viewport_width / (width as f32));
+    (positions, scale)
 }
 
 /// Returns an observer that updates the entity's material to the one specified.
