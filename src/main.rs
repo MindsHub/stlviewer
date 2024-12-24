@@ -181,7 +181,7 @@ fn update_current_sys(
         MeshRenderMode::Leaf { url } => {
             // we need to render a single item and let the user move the camera
             camera_pan_orbit.enabled = true;
-            camera_pan_orbit.target_radius = 2.0;
+            camera_pan_orbit.target_radius = 1.5;
             camera_pan_orbit.target_yaw = 0.5;
             camera_pan_orbit.target_pitch = 0.5;
 
@@ -190,7 +190,7 @@ fn update_current_sys(
             commands.spawn((
                 Mesh3d(model),
                 MeshMaterial3d(mesh_tree.white_matl.clone()),
-                Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)).with_scale(Vec3::splat(0.02)),
+                Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
                 VisualizationComponents,
                 Visibility::Hidden,
             ));
@@ -199,7 +199,7 @@ fn update_current_sys(
         MeshRenderMode::Subtree { urls } => {
             // we need to render multiple rotating items but the camera should stay still
             camera_pan_orbit.enabled = false;
-            camera_pan_orbit.target_radius = 2.0;
+            camera_pan_orbit.target_radius = 1.5;
             camera_pan_orbit.target_yaw = 0.0;
             camera_pan_orbit.target_pitch = 0.0;
 
