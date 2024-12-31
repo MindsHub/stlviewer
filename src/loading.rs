@@ -110,7 +110,7 @@ impl LoadingData {
 
 // This resource will hold the level related systems ID for later use.
 fn setup(asset_server: ResMut<AssetServer>, mut loading_data: ResMut<LoadingData>) {
-    loading_data.img = asset_server.load("http://localhost:8080/logo.png");
+    loading_data.img = asset_server.load("/logo.png");
 }
 
 // Marker component for easier deletion of entities.

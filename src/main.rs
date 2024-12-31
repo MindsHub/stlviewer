@@ -123,12 +123,12 @@ fn setup(
     let mesh_tree_root = MeshTreeNode::from_json(r#"{
         "url": "useless",
         "children": [
-            { "url": "http://localhost:8080/benchy.stl" },
-            { "url": "http://localhost:8080/mendocino.stl" },
-            { "url": "http://localhost:8080/benchy.stl" },
-            { "url": "http://localhost:8080/mendocino.stl" },
-            { "url": "http://localhost:8080/benchy.stl" },
-            { "url": "http://localhost:8080/mendocino.stl" },
+            { "url": "/benchy.stl" },
+            { "url": "/mendocino.stl" },
+            { "url": "/benchy.stl" },
+            { "url": "/mendocino.stl" },
+            { "url": "/benchy.stl" },
+            { "url": "/mendocino.stl" },
             { "url": "https://files.printables.com/media/prints/1109750/stls/8384921_616f48b1-343a-44be-9706-270e717d37fc_c57a5d1a-11f4-419d-b7ed-69836936406b/notredameparis2.stl" },
             { "url": "https://files.printables.com/media/prints/888961/stls/6807211_1d4002d8-8af3-41bb-8706-1a0fa0cfd25b_52419fc3-bee6-4483-8843-fb1590d37704/einsteinpot.stl" },
             { "url": "https://files.printables.com/media/prints/2236/stls/14012_b9139bd5-c68b-46a5-ba28-6513f9715d83/3dbenchy.stl" }
