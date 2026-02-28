@@ -1,6 +1,6 @@
 //! Shows how to create a loading screen that waits for assets to load and render.
 
-use bevy::{math::Vec3A, prelude::*, render::mesh::MeshAabb, utils::hashbrown::HashMap};
+use bevy::{camera::primitives::MeshAabb, math::Vec3A, platform::collections::HashMap, prelude::*};
 use pipelines_ready::*;
 
 // The way we'll go about doing this in this example is to
@@ -40,7 +40,7 @@ impl Plugin for LoadingScreenPlugin {
 }
 
 fn load_loading_screen(loading_data: Res<LoadingData>, mut commands: Commands) {
-    info!("load_loading_screen");
+    //console_log!("load_loading_screen");
     commands.spawn((
         LoadingScreen,
         Sprite {
@@ -57,9 +57,9 @@ fn clear_loading_screen(
     mut loaded: Query<&mut Visibility, With<VisualizationComponents>>,
     mut camera: Option<Single<&mut Camera, With<VisualizationComponents>>>,
 ) {
-    info!("clear_loading_screen");
+    //console_log!("clear_loading_screen");
     for entity in loading.iter() {
-        commands.entity(entity).despawn_recursive();
+        commands.entity(entity).despawn();
     }
     loaded.iter_mut().for_each(|mut visibility| {
         *visibility = Visibility::Visible;
@@ -115,13 +115,13 @@ fn setup(asset_server: ResMut<AssetServer>, mut loading_data: ResMut<LoadingData
 
 // Marker component for easier deletion of entities.
 #[derive(Component)]
-#[require(Visibility(|| Visibility::Visible))]
+#[require(Visibility::Visible)] // TODO(Alessio) Fabio: prima era `Visibility(|| Visibility::Visible)` che non compilava più e l'ho cambiato in questo, ma non so se è giusto
 pub struct VisualizationComponents;
 
 // Removes all currently loaded level assets from the game World.
 pub fn unload_current_visualization(mut loading_state: ResMut<NextState<LoadingState>>, mut commands: Commands, loaded: Query<Entity, With<VisualizationComponents>>) {
     for entity in loaded.iter() {
-        commands.entity(entity).despawn_recursive();
+        commands.entity(entity).despawn();
     }
     loading_state.set(LoadingState::Loading);
 }
@@ -240,7 +240,7 @@ fn resize_meshes(mut commands: Commands, mut q: Query<(Entity, &Mesh3d)>, mut me
     }
     for (entity, mesh) in &mut q{
         // is necessary to update the bounding boxes by hand
-        commands.entity(entity).insert(to_update.get(&mesh.0).unwrap().clone());
+        commands.entity(entity).insert(*to_update.get(&mesh.0).unwrap());
     }
 
 }

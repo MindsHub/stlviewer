@@ -7,12 +7,11 @@ mod rotating;
 use std::{iter::zip, sync::{Arc, Weak}};
 
 use bevy::{
-    asset::AssetMetaCheck, color::palettes::tailwind::{CYAN_300, GREEN_300, YELLOW_300}, diagnostic::LogDiagnosticsPlugin, ecs::system::SystemId, prelude::*, window::{PresentMode, WindowResized}
+    asset::AssetMetaCheck, color::palettes::tailwind::{CYAN_300, YELLOW_300}, diagnostic::LogDiagnosticsPlugin, ecs::system::SystemId, prelude::*, window::{PresentMode, WindowResized}
 };
 //use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
 use loading::{unload_current_visualization, LoadingData, LoadingState, VisualizationComponents};
-use bevy_web_asset::WebAssetPlugin;
 use meshes_tree::MeshTreeNode;
 use rotating::{rotate, Rotate};
 
@@ -29,18 +28,11 @@ pub struct MeshTreeRes {
     white_matl: Handle<StandardMaterial>,
     hover_matl: Handle<StandardMaterial>,
     pressed_matl: Handle<StandardMaterial>,
-    up_matl: Handle<StandardMaterial>,
 }
 
 #[derive(Resource)]
 pub struct OneShotSystemsRes {
     update_current_sys: SystemId
-}
-
-#[derive(Component)]
-pub enum CameraType {
-    Rotating,
-    Fixed,
 }
 
 impl FromWorld for OneShotSystemsRes {
@@ -50,6 +42,9 @@ impl FromWorld for OneShotSystemsRes {
         }
     }
 }
+
+#[derive(Component)]
+pub struct BackButton;
 
 fn main() {
     //def.set(plugin)
@@ -68,7 +63,7 @@ fn main() {
     };
 
     App::new()
-        .add_plugins(WebAssetPlugin::default())
+        // .add_plugins(WebAssetPlugin::default())
         .add_plugins(DefaultPlugins.set(asset).set(window))
         .add_plugins(bevy_stl::StlPlugin)
         .add_plugins(LogDiagnosticsPlugin::default())
@@ -89,6 +84,7 @@ fn setup(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
     one_shot_systems: ResMut<OneShotSystemsRes>,
+    asset_server: ResMut<AssetServer>,
 ) {
     // light
     let light = commands.spawn((
@@ -101,7 +97,7 @@ fn setup(
         Visibility::Hidden,
     )).id();
 
-    // camera
+    // 3D camera
     commands.spawn((
         Camera3d::default(),
         PanOrbitCamera::default(),
@@ -113,11 +109,22 @@ fn setup(
         VisualizationComponents,
     )).add_child(light);
 
+    // 2D camera for UI
+    commands.spawn(Camera2d);
+    commands.spawn((
+        Sprite {
+            image: asset_server.load("/back.png"),
+            ..default()
+        },
+        Transform::default(),
+        BackButton,
+        Visibility::Hidden,
+    ));
+
     // materials
     let white_matl = materials.add(Color::WHITE);
     let hover_matl = materials.add(Color::from(CYAN_300));
     let pressed_matl = materials.add(Color::from(YELLOW_300));
-    let up_matl = materials.add(Color::from(GREEN_300));
 
     // load tree of meshes to navigate through
     let mesh_tree_root = MeshTreeNode::from_json(r#"{
@@ -128,10 +135,7 @@ fn setup(
             { "url": "/benchy.stl" },
             { "url": "/mendocino.stl" },
             { "url": "/benchy.stl" },
-            { "url": "/mendocino.stl" },
-            { "url": "https://files.printables.com/media/prints/1109750/stls/8384921_616f48b1-343a-44be-9706-270e717d37fc_c57a5d1a-11f4-419d-b7ed-69836936406b/notredameparis2.stl" },
-            { "url": "https://files.printables.com/media/prints/888961/stls/6807211_1d4002d8-8af3-41bb-8706-1a0fa0cfd25b_52419fc3-bee6-4483-8843-fb1590d37704/einsteinpot.stl" },
-            { "url": "https://files.printables.com/media/prints/2236/stls/14012_b9139bd5-c68b-46a5-ba28-6513f9715d83/3dbenchy.stl" }
+            { "url": "/mendocino.stl" }
         ]
     }"#);
     console_log!("Meshes: {mesh_tree_root:?}");
@@ -145,7 +149,6 @@ fn setup(
             white_matl,
             hover_matl,
             pressed_matl,
-            up_matl,
         }
     );
 
@@ -153,13 +156,15 @@ fn setup(
     commands.run_system(one_shot_systems.update_current_sys);
 }
 
+#[allow(clippy::too_many_arguments)]
 fn update_current_sys(
     mut commands: Commands,
     asset_server: ResMut<AssetServer>,
     mut loading_data: ResMut<LoadingData>,
     mesh_tree: Res<MeshTreeRes>,
     current_meshes: Query<Entity, With<Mesh3d>>,
-    mut camera: Query<&mut PanOrbitCamera, With<Camera3d>>,
+    mut camera_pan_orbit: Query<&mut PanOrbitCamera, With<Camera3d>>,
+    mut back_button: Query<(&mut Visibility, &mut Transform), With<BackButton>>,
     window: Query<&Window>,
 ) {
     console_log!("update_current_sys called");
@@ -167,15 +172,28 @@ fn update_current_sys(
     // despawn all current meshes
     current_meshes.iter().for_each(|entity| commands.entity(entity).despawn());
 
+    // obtain some objects
     let Some(mesh_tree_node) = mesh_tree.current.upgrade() else {
         // something went wrong, nothing to do
+        console_log!("update_current_sys: something went wrong, nothing to do");
         return;
     };
+    let mut camera_pan_orbit = camera_pan_orbit.single_mut().unwrap();
+    let mut back_button = back_button.single_mut().unwrap();
+    let window = window.single().unwrap();
 
     // switch to the loading state, since we are going to load more assets
     commands.set_state(LoadingState::Loading);
-    let mut camera_pan_orbit = camera.single_mut();
-    let window = window.single();
+
+    // decide whether to show the back button, and place it correctly
+    if mesh_tree_node.parent.strong_count() == 0 {
+        // this node has no parent, do not show back button
+        *back_button.0 = Visibility::Hidden;
+    } else {
+        // this node has a parent mesh, allow going back
+        *back_button.1 = Transform::from_xyz(-0.5 * 300., 0.5 * 300. * 300. / window.height(), 1.);//.with_scale(Vec3::splat(0.5));
+        *back_button.0 = Visibility::Visible;
+    }
 
     match get_render_mode(&mesh_tree_node) {
         MeshRenderMode::Leaf { url } => {
@@ -220,8 +238,8 @@ fn update_current_sys(
                 ))
                     .observe(update_material_on::<Pointer<Over>>(mesh_tree.hover_matl.clone()))
                     .observe(update_material_on::<Pointer<Out>>(mesh_tree.white_matl.clone()))
-                    .observe(update_material_on::<Pointer<Down>>(mesh_tree.pressed_matl.clone()))
-                    .observe(child_child_as_current_on::<Pointer<Up>>(child_index));
+                    .observe(update_material_on::<Pointer<Press>>(mesh_tree.pressed_matl.clone()))
+                    .observe(child_child_as_current_on::<Pointer<Release>>(child_index));
             }
         },
     }
@@ -257,7 +275,7 @@ fn get_render_mode(mesh_tree_node: &Arc<MeshTreeNode>) -> MeshRenderMode {
 
 fn update_window_size(
     mut commands: Commands,
-    mut events: EventReader<WindowResized>,
+    mut events: MessageReader<WindowResized>,
     mesh_tree: Res<MeshTreeRes>,
     one_shot_systems: ResMut<OneShotSystemsRes>,
 ) {
@@ -303,22 +321,22 @@ fn generate_positions(mesh_count: usize, window_height: f32, window_width: f32) 
 }
 
 /// Returns an observer that updates the entity's material to the one specified.
-fn update_material_on<E>(
+fn update_material_on<E : EntityEvent>(
     new_material: Handle<StandardMaterial>,
-) -> impl Fn(Trigger<E>, Query<&mut MeshMaterial3d<StandardMaterial>>) {
+) -> impl Fn(On<E>, Query<&mut MeshMaterial3d<StandardMaterial>>) {
     // An observer closure that captures `new_material`. We do this to avoid needing to write four
     // versions of this observer, each triggered by a different event and with a different hardcoded
     // material. Instead, the event type is a generic, and the material is passed in.
     move |trigger, mut query| {
-        if let Ok(mut material) = query.get_mut(trigger.entity()) {
+        if let Ok(mut material) = query.get_mut(trigger.event().event_target()) {
             material.0 = new_material.clone();
         }
     }
 }
 
-fn child_child_as_current_on<E>(
+fn child_child_as_current_on<E : EntityEvent>(
     child_index: usize
-) -> impl Fn(Trigger<E>, Commands, ResMut<MeshTreeRes>, ResMut<OneShotSystemsRes>) {
+) -> impl Fn(On<E>, Commands, ResMut<MeshTreeRes>, ResMut<OneShotSystemsRes>) {
     move |_, mut commands, mut mesh_tree, one_shot_systems| {
         let Some(current) = mesh_tree.current.upgrade() else { return; };
         let Some(child) = current.children.get(child_index) else { return; };
