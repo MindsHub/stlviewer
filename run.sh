@@ -1,5 +1,5 @@
 set -xe
-trunk build "$@"
+RUSTFLAGS='--cfg getrandom_backend="wasm_js"' trunk build "$@"
 static-web-server -p 8080 -x -d ./dist --cache-control-headers false -w static-web-server.toml
 
 # http://localhost:8080/#http://localhost:8080/benchy.stl
